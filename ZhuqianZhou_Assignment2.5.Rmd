@@ -1,0 +1,121 @@
+---
+title: "HUDM5124Assignment2.5"
+author: "Zhuqian Zhou"
+date: "2017/2/13"
+output: html_document
+---
+STEP-BY-STEP PROCEDURE FOR ASSN. 2: TORGERSON'S METRIC MDS ALGORITHM
+
+##PART A
+Transform the similarity data to obtain "pseudodistances".
+The following matrix show the confusion probabilities among pairs of five Morse code signals (for E,H,N,S,W) obtained by Rothkopf (1957).
+```{r}
+library(dplyr)
+p <- read.csv("ConfusionPofMoseCodeSignials.csv")
+row.names(p) <- p$X
+p <- select(p, 2:6)
+p
+```
+Starting with these probabilities, transform the confusions into dissimilarities that satisfy the axioms of a metric space (="pseudodistances"). This process involves the following steps 1-4:
+
+#1
+symmetrize the matrix (by averaging the corresponding entries in the upper & lower halves of the matrix), and write it out as a lowerhalf matrix.
+```{r}
+D = matrix(numeric(25),5,5)
+for (i in 2:5)
+  { for (j in 1:(i-1))
+   { D[i,j] <- (p[i,j]+p[j,i])/2}}
+for (i in 1:5)
+{ for (j in i:5) D[i,j]=0 }
+D
+```
+#2
+transform the similarities into dissimilarities (by subtracting each entry from the largest similarity).
+```{r}
+mD <- max(D)
+for (i in 2:5)
+  {for (j in 1:(i-1))
+  D[i,j] <- mD-D[i,j]}
+D = D+t(D)
+D
+```
+#3
+for every triple of objects, check if the triangle inequality is satisfied (theoretically, it must be satisfied for all possible permutations of the three points: d(x,y)+d(y,z) ≥ d(x,z), d(x,z) + d(z,y) ≥ d(x,y), d(y,x)+d(x,z)≥d(y,z), but a little thought can save you a lot of checking here). If the TI is not satisfied, then find the largest violation, C = d(x,z) - (d(x,y)+d(y,z)), and add this constant C to each of the dissimilarities. Verify that the TI is now EXACTLY satisfied for the triple that gave you the largest violation.
+```{r}
+m <- 5
+minc <- 0
+for (k in 3:m)
+{ for (j in 2:(k-1))
+{ for (i in 1:(j-1))
+{i;j;k
+c1<-D[i,j]+D[j,k]-D[i,k]
+c2<-D[j,k]+D[i,k]-D[i,j]
+c3<-D[i,j]+D[i,k]-D[j,k]
+c <- min(c1,c2,c3)
+if (c<0) minc <- min(c,minc)}}}
+C <- matrix(numeric(25),5,5)
+C <- C+abs(minc)
+Delta <- D+C
+```
+#4
+write out the resulting matrix as a full matrix (putting 0's in the diagonal). These numbers now satisfy the metric axioms; i.e., they are "pseudodistances".
+```{r}
+for (i in 1:5) Delta[i,i]=0
+Delta
+```
+##PART B
+transform the "pseudodistances" into "pseudo scalar products" (as follows)
+#5
+square each entry in this matrix to get dij2.
+```{r}
+DeltaSq<-Delta^2
+DeltaSq
+```
+#6
+"double-center" this symmetric matrix using the formula: ...(include the diagonal entries). The resulting matrix may be thought of as "pseudo scalar products".
+```{r}
+# compute the row / col means and the grand mean
+aveDsq<-c(1:5)
+for (i in 1:m) aveDsq[i]<-mean(DeltaSq[i,])
+m<-5
+grmean<-mean(aveDsq[])
+aveDsq
+grmean
+# define matrix B*, the quasi-scalar products matrix
+B<-matrix(numeric(25),5,5)
+for (i in 1:m)
+{ for (j in 1:m)
+{ B[i,j] <- -0.5*(DeltaSq[i,j]-aveDsq[i]-aveDsq[j]+grmean)
+}}
+B
+```
+##PART C
+Factor the pseudo-scalar products using PCA.
+#7
+Run a principal components analysis (PCA) of this matrix, treating it as covariances, and requesting no rotation of the factor solution. Do a "scree plot" of the size of each eigenvalue for the five components. How many dimensions appear to approximately characterize the data?
+```{r}
+Bcomp<-eigen(B)
+Bcomp$values
+Bcomp$vectors
+plot(Bcomp$values, type="l", main="scree plot") #scree plot of eigenvalues
+```
+According to the scree plot, three dimensions apear to approximately characterize the data.
+#8
+Plot the five points in a 2-dimensional space using the "factor loadings" for the first two dimensions (label each point appropriately). In a sentence or two, compare your configuration to that obtained by Shepard (and reported in Kruskal & Wish).
+```{r}
+# define PCs
+D2 <- matrix(numeric(4),2,2)
+for (i in 1:2) D2[i,i]<-sqrt(Bcomp$values[i])
+evec<-Bcomp$vectors[,1:2]
+D2
+evec
+P <- evec%*%D2
+P
+# plot the final 2-dim configuration
+P<-as.data.frame(P)
+row.names(P) <- row.names(p)
+names(P) <- c("num.ofComponents","DashesDots")
+plot(P, main = "scatter plot")
+text(P, labels = row.names(P), cex= 0.6, pos=2)
+```
+My configuration looks similar to the one obtained by Shepard (1980) from the aspect of dots and dashes, but is a little different regarding the number of components. In Sherpard's plot, "W", "H" and "S" are comprised of three mose codes thus are close to each in this axis while in my plot "W" is a little far from "H" and "S" but is closed to "N" which consists of two codes rather than three.
